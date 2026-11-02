@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP + HomeKit 在线烧录器</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23F0A437'/><text x='50' y='68' font-size='52' text-anchor='middle' font-family='monospace' font-weight='bold' fill='%231a1a1a'>ES</text></svg>">
+<style>
+  :root{
+    --bg:#1a1a1a;
+    --card:#262626;
+    --card-border:#3a3a3a;
+    --text:#e8e8e8;
+    --text-dim:#888;
+    --accent:#F0A437;
+    --accent-text:#1a1a1a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    line-height:1.5;
+    padding:20px;
+    max-width:780px;
+    margin:0 auto;
+  }
+  h1{font-size:22px;margin-bottom:4px;display:flex;align-items:baseline;gap:10px}
+  h1 .ver{font-size:12px;color:var(--text-dim);font-weight:normal}
+  .section-title{
+    font-size:14px;color:var(--text-dim);margin:24px 0 10px;
+  }
+  .section-title b{color:var(--text);font-weight:600}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .opt{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:8px;
+    padding:14px 16px;
+    cursor:pointer;
+    transition:all .15s;
+    user-select:none;
+  }
+  .opt:hover{border-color:#555}
+  .opt.active{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--accent-text);
+  }
+  .opt.active .sub{color:rgba(0,0,0,.6)}
+  .opt .name{font-size:15px;font-weight:600}
+  .opt .sub{font-size:12px;color:var(--text-dim);margin-top:2px}
+  .opt.wide{grid-column:1/-1}
+  input[type=text],input[type=password]{
+    width:100%;
+    background:#111;
+    border:1px solid var(--card-border);
+    border-radius:8px;
+    color:var(--text);
+    padding:12px 14px;
+    font-size:15px;
+    margin-top:6px;
+  }
+  input:focus{outline:none;border-color:var(--accent)}
+  .field{margin-top:14px}
+  .field label{font-size:13px;color:var(--text-dim)}
+  /* 烧录按钮区 */
+  .flash-area{
+    margin-top:32px;
+    padding:20px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    text-align:center;
+  }
+  .flash-area h3{font-size:16px;margin-bottom:6px}
+  .flash-area p{font-size:13px;color:var(--text-dim);margin-bottom:16px}
+  esp-web-install-button{
+    --esp-tools-button-color:var(--accent);
+    --esp-tools-button-text-color:var(--accent-text);
+    --esp-tools-button-border-radius:8px;
+    display:inline-block;
+  }
+  esp-web-install-button::part(button){
+    background:var(--accent);
+    color:var(--accent-text);
+    border:none;
+    padding:14px 32px;
+    font-size:16px;
+    font-weight:600;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .status{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--text-dim);
+    min-height:20px;
+    font-family:ui-monospace,Consolas,monospace;
+  }
+  .tips{
+    margin-top:20px;
+    padding:14px;
+    background:#2a2518;
+    border-left:3px solid var(--accent);
+    border-radius:4px;
+    font-size:13px;
+    color:#d8c89a;
+  }
+  .tips b{color:var(--accent)}
+  @media(max-width:520px){
+    .grid{grid-template-columns:1fr}
+    body{padding:14px}
+  }
+</style>
+</head>
+<body>
+
+<h1>ESP + HomeKit 在线烧录器 <span class="ver">TXH-eh v1.1</span></h1>
+
+<!-- 芯片 -->
+<div class="section-title"><b>芯片</b> <span>默认 ESP8266</span></div>
+<div class="grid" id="chipGrid">
+  <div class="opt active" data-value="esp8266">
+    <div class="name">ESP8266</div>
+    <div class="sub">轻量 · 便宜</div>
+  </div>
+  <div class="opt" data-value="esp32">
+    <div class="name">ESP32</div>
+    <div class="sub">推荐 · 双核 WiFi</div>
+  </div>
+</div>
+
+<!-- Flash -->
+<div class="section-title"><b>Flash 大小</b></div>
+<div class="grid" id="flashGrid">
+  <div class="opt" data-value="1MB"><div class="name">1MB</div></div>
+  <div class="opt" data-value="2MB"><div class="name">2MB</div></div>
+  <div class="opt active" data-value="4MB"><div class="name">4MB (默认)</div></div>
+  <div class="opt" data-value="8MB"><div class="name">8MB</div></div>
+</div>
+
+<!-- 板型 -->
+<div class="section-title"><b>板型</b> <span>随芯片联动</span></div>
+<div class="grid" id="boardGrid">
+  <div class="opt active" data-value="nodemcuv2"><div class="name">NodeMCU V2 (ESP-12E, 4MB)</div><div class="sub">FLASH 4MB</div></div>
+  <div class="opt" data-value="wemosd1mini"><div class="name">Wemos D1 Mini (4MB)</div><div class="sub">FLASH 4MB</div></div>
+  <div class="opt" data-value="esp01"><div class="name">ESP-01 / ESP-01S (1MB)</div><div class="sub">FLASH 1MB</div></div>
+  <div class="opt" data-value="esp8285"><div class="name">ESP8285 通用 (1MB)</div><div class="sub">FLASH 1MB</div></div>
+</div>
+
+<!-- GPIO -->
+<div class="section-title"><b>继电器 GPIO</b></div>
+<div class="grid" id="gpioGrid">
+  <div class="opt" data-value="gpio2"><div class="name">2</div><div class="sub">GPIO</div></div>
+  <div class="opt" data-value="gpio3"><div class="name">3</div><div class="sub">GPIO</div></div>
+  <div class="opt active" data-value="gpio14"><div class="name">14</div><div class="sub">GPIO</div></div>
+  <div class="opt" data-value="gpio15"><div class="name">15</div><div class="sub">GPIO</div></div>
+</div>
+
+<!-- WiFi -->
+<div class="section-title"><b>WiFi 设置</b> <span>烧录后自动引导配网</span></div>
+<div class="tips">
+  <b>说明：</b>固件烧录完成后，会通过 <b>Improv WiFi</b> 自动弹出配网窗口，在网页里直接输入你家 WiFi 名称和密码即可，<b>不需要重烧固件</b>。
+</div>
+
+<!-- 烧录区 -->
+<div class="flash-area">
+  <h3>连接设备并烧录</h3>
+  <p>用 USB 线把 ESP 板子插到电脑，点下面按钮选择串口</p>
+  <esp-web-install-button id="flashBtn">
+    <button slot="activate">连接设备并烧录</button>
+    <span slot="unsupported">当前浏览器不支持 Web Serial，请用 Chrome / Edge 打开</span>
+    <span slot="not-allowed">需要 HTTPS 或 localhost 才能烧录</span>
+  </esp-web-install-button>
+  <div class="status" id="status">等待选择配置…</div>
+</div>
+
+<div class="tips">
+  <b>首次烧录提示：</b>① 板子需要进入下载模式（ESP8266 按 Flash 键上电；ESP32 通常自动进）；② 烧录过程约 30 秒~2 分钟，勿拔线；③ 烧完后在 iPhone 家庭 App 右上角"+"扫码，配对码 <b>111-22-333</b>。
+</div>
+
+<!-- esp-web-tools 库 -->
+<script type="module" src="https://fastly.jsdelivr.net/npm/esp-web-tools@10/dist/web/install-button.js?module"></script>
+
+<script>
+(function(){
+  // ===== 状态 =====
+  var state = {
+    chip: 'esp8266',
+    flash: '4MB',
+    board: 'nodemcuv2',
+    gpio: 'gpio14'
+  };
+
+  // ===== 选项点击 =====
+  function bindGrid(gridId, key){
+    var grid = document.getElementById(gridId);
+    grid.addEventListener('click', function(e){
+      var opt = e.target.closest('.opt');
+      if(!opt) return;
+      grid.querySelectorAll('.opt').forEach(function(o){o.classList.remove('active')});
+      opt.classList.add('active');
+      state[key] = opt.dataset.value;
+      updateStatus();
+    });
+  }
+  bindGrid('chipGrid','chip');
+  bindGrid('flashGrid','flash');
+  bindGrid('boardGrid','board');
+  bindGrid('gpioGrid','gpio');
+
+  // ===== bin 路径约定 =====
+  // Pages 仓库下 firmware/ 目录，按 {chip}_{board}_{flash}_{gpio}.bin 命名
+  // ESP8266 单 bin 从 0x0 烧；ESP32 需要 4 个 part（bootloader/partitions/boot_app0/firmware）
+  function buildManifest(){
+    var chipFamily = state.chip === 'esp32' ? 'ESP32' : 'ESP8266';
+    var base = 'firmware/' + state.chip + '/' + state.board + '_' + state.flash + '_' + state.gpio;
+    if(state.chip === 'esp8266'){
+      return {
+        name: 'HomeKit 开关',
+        version: '1.0.0',
+        new_install_prompt_erase: true,
+        builds: [{
+          chipFamily: 'ESP8266',
+          parts: [{ path: base + '.bin', offset: 0 }]
+        }]
+      };
+    } else {
+      return {
+        name: 'HomeKit 开关',
+        version: '1.0.0',
+        new_install_prompt_erase: true,
+        builds: [{
+          chipFamily: 'ESP32',
+          parts: [
+            { path: base + '.bootloader.bin', offset: 4096 },
+            { path: base + '.partitions.bin', offset: 32768 },
+            { path: base + '.boot_app0.bin', offset: 57344 },
+            { path: base + '.firmware.bin', offset: 65536 }
+          ]
+        }]
+      };
+    }
+  }
+
+  function updateStatus(){
+    var btn = document.getElementById('flashBtn');
+    var manifest = buildManifest();
+    var json = JSON.stringify(manifest);
+    var blob = new Blob([json], {type:'application/json'});
+    btn.manifest = URL.createObjectURL(blob);
+    var path = state.chip + '/' + state.board + '_' + state.flash + '_' + state.gpio;
+    document.getElementById('status').textContent =
+      '当前固件: ' + path + ' → 点按钮烧录';
+  }
+
+  updateStatus();
+})();
+</script>
+
+</body>
+</html>
